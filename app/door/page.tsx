@@ -28,6 +28,10 @@ useEffect(() => {
 }, []);
 
 useEffect(() => {
+  fetchGuests();
+}, []);
+
+useEffect(() => {
   const channel = supabase
     .channel("guests-changes")
     .on(
