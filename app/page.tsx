@@ -2,33 +2,29 @@ import Link from "next/link";
 
 export default function Home() {
   return (
-    <main style={{
-      minHeight: "100vh",
-      background: "#050505",
-      color: "white",
-      display: "flex",
-      alignItems: "center",
-      justifyContent: "center",
-      textAlign: "center",
-      padding: 24,
-      fontFamily: "Arial, sans-serif"
-    }}>
-      <div>
-        <h1 style={{ color: "#ff1f2d", fontSize: 42 }}>
+    <main className="min-h-screen bg-black text-white flex items-center justify-center p-6">
+      <div className="text-center">
+        <h1 className="text-4xl md:text-5xl font-bold text-red-500 mb-4">
           Playground VIP System
         </h1>
 
-        <p style={{ opacity: 0.8, marginBottom: 32 }}>
+        <p className="text-zinc-400 mb-8">
           Authorized access only.
         </p>
 
-        <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
-          <Link href="/door">
-            <button>Door Login</button>
+        <div className="flex flex-col md:flex-row gap-4 justify-center">
+          <Link
+            href="/door"
+            className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold"
+          >
+            Door öffnen
           </Link>
 
-          <Link href="/admin">
-            <button>Admin Login</button>
+          <Link
+            href="/admin"
+            className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold"
+          >
+            Admin öffnen
           </Link>
         </div>
       </div>
