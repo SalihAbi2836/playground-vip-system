@@ -124,13 +124,23 @@ if (!isAuthenticated) {
           Door Login
         </h1>
 
-        <input
-          type="password"
-          placeholder="PIN"
-          value={pin}
-          onChange={(e) => setPin(e.target.value)}
-          className="w-full p-3 rounded-lg text-black mb-4"
-        />
+       <input
+  type="password"
+  placeholder="PIN"
+  value={pin}
+  onChange={(e) => setPin(e.target.value)}
+  onKeyDown={(e) => {
+    if (e.key === "Enter") {
+      if (pin === DOOR_PIN) {
+        localStorage.setItem("door-auth", "true");
+        setIsAuthenticated(true);
+      } else {
+        alert("Wrong PIN");
+      }
+    }
+  }}
+  className="w-full p-3 rounded-lg bg-zinc-800 text-white placeholder-gray-400 mb-4"
+/>
 
         <button
           onClick={() => {
@@ -156,9 +166,9 @@ if (!isAuthenticated) {
       </h1>
 <button
   onClick={() => {
-    localStorage.removeItem("door-auth");
-    setIsAuthenticated(false);
-  }}
+  localStorage.removeItem("door-auth");
+  window.location.href = "/";
+}}
   className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
 >
   Logout
