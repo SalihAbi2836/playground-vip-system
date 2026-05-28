@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 export default function Home() {
   return (
     <main style={{
@@ -15,9 +17,20 @@ export default function Home() {
         <h1 style={{ color: "#ff1f2d", fontSize: 42 }}>
           Playground VIP System
         </h1>
-        <p style={{ fontSize: 18, opacity: 0.8 }}>
+
+        <p style={{ opacity: 0.8, marginBottom: 32 }}>
           Authorized access only.
         </p>
+
+        <div style={{ display: "flex", gap: 16, justifyContent: "center" }}>
+          <Link href="/door">
+            <button>Door Login</button>
+          </Link>
+
+          <Link href="/admin">
+            <button>Admin Login</button>
+          </Link>
+        </div>
       </div>
     </main>
   );

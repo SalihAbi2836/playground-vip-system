@@ -1,5 +1,7 @@
 "use client";
 
+const DOOR_PIN = "5678";
+
 import { useEffect, useState } from "react";
 import { supabase } from "../../lib/supabase";
 
@@ -16,8 +18,13 @@ export default function DoorPage() {
   const [search, setSearch] = useState("");
   const [guests, setGuests] = useState<Guest[]>([]);
 
-  useEffect(() => {
-  fetchGuests();
+const [pin, setPin] = useState("");
+const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+useEffect(() => {
+  if (localStorage.getItem("door-auth") === "true") {
+    setIsAuthenticated(true);
+  }
 }, []);
 
 useEffect(() => {
@@ -109,13 +116,53 @@ const totalVIPs = guests.filter(
 const totalGuestlist = guests.filter(
   (guest) => guest.category === "Guestlist"
 ).length;
+if (!isAuthenticated) {
+  return (
+    <main className="min-h-screen bg-black text-white flex items-center justify-center">
+      <div className="bg-zinc-900 p-8 rounded-2xl w-80 text-center">
+        <h1 className="text-3xl font-bold text-red-500 mb-4">
+          Door Login
+        </h1>
 
+        <input
+          type="password"
+          placeholder="PIN"
+          value={pin}
+          onChange={(e) => setPin(e.target.value)}
+          className="w-full p-3 rounded-lg text-black mb-4"
+        />
+
+        <button
+          onClick={() => {
+            if (pin === DOOR_PIN) {
+              localStorage.setItem("door-auth", "true");
+              setIsAuthenticated(true);
+            } else {
+              alert("Wrong PIN");
+            }
+          }}
+          className="w-full bg-red-600 hover:bg-red-700 p-3 rounded-lg font-bold"
+        >
+          Login
+        </button>
+      </div>
+    </main>
+  );
+}
   return (
     <main className="min-h-screen bg-black text-white p-5 md:p-10">
       <h1 className="text-4xl md:text-5xl font-bold mb-8 text-red-500">
         Playground Door Mode
       </h1>
-
+<button
+  onClick={() => {
+    localStorage.removeItem("door-auth");
+    setIsAuthenticated(false);
+  }}
+  className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
+>
+  Logout
+</button>
       <div className="mb-8 flex flex-col md:flex-row gap-3 md:gap-6 text-lg md:text-xl">
   <p>
     VIPs:{" "}
