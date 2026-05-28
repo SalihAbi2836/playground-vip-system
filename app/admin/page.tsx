@@ -226,6 +226,16 @@ if (!isAuthenticated) {
         Admin Access
       </h1>
 
+<button
+  onClick={() => {
+    localStorage.removeItem("admin-auth");
+    setIsAuthenticated(false);
+  }}
+  className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
+>
+  Logout
+</button>
+
       <input
   type="password"
   placeholder="Enter PIN"
