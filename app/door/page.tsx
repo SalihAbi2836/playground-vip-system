@@ -170,13 +170,14 @@ if (!isAuthenticated) {
       </h1>
 <button
   onClick={() => {
-  localStorage.removeItem("door-auth");
-  window.location.href = "/";
-}}
+    localStorage.removeItem("door-auth");
+    window.location.href = "/";
+  }}
   className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
 >
-  Logout
+  Zur Auswahl
 </button>
+
       <div className="mb-8 flex flex-col md:flex-row gap-3 md:gap-6 text-lg md:text-xl">
   <p>
     VIPs:{" "}

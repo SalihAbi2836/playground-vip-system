@@ -253,11 +253,11 @@ if (!isAuthenticated) {
 <button
   onClick={() => {
     localStorage.removeItem("admin-auth");
-    setIsAuthenticated(false);
+    window.location.href = "/";
   }}
   className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
 >
-  Logout
+  Zur Auswahl
 </button>
       <div className="mb-8 flex flex-col md:flex-row gap-3 md:gap-6 text-lg md:text-xl">
   <p>

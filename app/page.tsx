@@ -17,14 +17,18 @@ export default function Home() {
             href="/door"
             className="bg-green-600 hover:bg-green-700 px-8 py-4 rounded-xl font-bold"
           >
-            Door öffnen
+           Door Mode
+Check In / Check Out
+
           </Link>
 
           <Link
             href="/admin"
             className="bg-red-600 hover:bg-red-700 px-8 py-4 rounded-xl font-bold"
           >
-            Admin öffnen
+            Admin Mode
+Manage VIPs & Guests
+
           </Link>
         </div>
       </div>
