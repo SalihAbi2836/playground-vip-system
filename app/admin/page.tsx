@@ -217,31 +217,33 @@ const totalGuestlist = guests.filter(
 ).length;
 if (!isAuthenticated) {
   return (
-    <main className="min-h-screen bg-black text-white flex flex-col items-center justify-center gap-4">
-      <h1 className="text-4xl font-bold text-red-500">
-        Admin Access
-      </h1>
+    <main className="min-h-screen bg-black text-white flex items-center justify-center">
+  <div className="bg-zinc-900 p-8 rounded-2xl w-80 text-center">
+    <h1 className="text-3xl font-bold text-red-500 mb-4">
+      Admin Login
+    </h1>
 
-      <input
-  type="password"
-  placeholder="Enter PIN"
-  value={pin}
-  onChange={(e) => setPin(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === "Enter") {
-      handleLogin();
-    }
-  }}
-  className="p-4 rounded-lg bg-white text-black w-72"
-/>
+    <input
+      type="password"
+      placeholder="PIN"
+      value={pin}
+      onChange={(e) => setPin(e.target.value)}
+      onKeyDown={(e) => {
+        if (e.key === "Enter") {
+          handleLogin();
+        }
+      }}
+      className="w-full p-3 rounded-lg bg-zinc-800 text-white placeholder-gray-400 mb-4"
+    />
 
-      <button
-        onClick={handleLogin}
-        className="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-bold"
-      >
-        Login
-      </button>
-    </main>
+    <button
+      onClick={handleLogin}
+      className="w-full bg-red-600 hover:bg-red-700 p-3 rounded-lg font-bold"
+    >
+      Login
+    </button>
+  </div>
+</main>
   );
 }
 
