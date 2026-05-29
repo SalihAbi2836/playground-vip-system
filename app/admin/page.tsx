@@ -55,11 +55,7 @@ const [guests, setGuests] = useState<Guest[]>([]);
     setIsAuthenticated(true);
   }
 }, []);
-useEffect(() => {
-  if (isAuthenticated) {
-    fetchGuests();
-  }
-}, [isAuthenticated]);
+
 useEffect(() => {
   if (isAuthenticated) {
     fetchGuests();
@@ -226,16 +222,6 @@ if (!isAuthenticated) {
         Admin Access
       </h1>
 
-<button
-  onClick={() => {
-    localStorage.removeItem("admin-auth");
-    setIsAuthenticated(false);
-  }}
-  className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
->
-  Logout
-</button>
-
       <input
   type="password"
   placeholder="Enter PIN"
@@ -264,7 +250,15 @@ if (!isAuthenticated) {
       <h1 className="text-4xl md:text-5xl font-bold mb-8 text-red-500">
         Playground VIP System
       </h1>
-
+<button
+  onClick={() => {
+    localStorage.removeItem("admin-auth");
+    setIsAuthenticated(false);
+  }}
+  className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
+>
+  Logout
+</button>
       <div className="mb-8 flex flex-col md:flex-row gap-3 md:gap-6 text-lg md:text-xl">
   <p>
     VIPs:{" "}
