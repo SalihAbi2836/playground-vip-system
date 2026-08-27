@@ -1,92 +1,58 @@
 "use client";
+
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "../../lib/supabase";
+import { AppHeader } from "../components/AppHeader";
+import { ConfirmDialog } from "../components/ConfirmDialog";
+import { GuestCard, Guest } from "../components/GuestCard";
+import { PinScreen } from "../components/PinScreen";
+import {
+  Button,
+  EmptyState,
+  Input,
+  SearchInput,
+  Stat,
+  cn,
+} from "../components/ui";
+
 const ADMIN_PIN = "1907";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
-
-type Guest = {
-  id: number;
-  name: string;
-  allowedGuests: number;
-  checkedIn: number;
-  created_at: string;
-  category: string;
-};
-
-export default function Home() {
-
-    const [name, setName] = useState("");
-
-  const [allowedGuests, setAllowedGuests] = useState(0);
-
+export default function AdminPage() {
+  const [name, setName] = useState("");
+  const [allowedGuests, setAllowedGuests] = useState<string>("");
+  const [category, setCategory] = useState("Guestlist");
   const [search, setSearch] = useState("");
 
   const [editingId, setEditingId] = useState<number | null>(null);
-
   const [editName, setEditName] = useState("");
+  const [editGuests, setEditGuests] = useState(0);
 
-const [editGuests, setEditGuests] = useState(0);
+  const [pendingDelete, setPendingDelete] = useState<Guest | null>(null);
 
-const [guests, setGuests] = useState<Guest[]>([]);
+  const [guests, setGuests] = useState<Guest[]>([]);
+  const [loading, setLoading] = useState(true);
 
-  const [category, setCategory] =
-  useState("Guestlist");
-
-  const [pin, setPin] = useState("");
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [ready, setReady] = useState(false);
 
-  const handleLogin = () => {
-  if (pin === ADMIN_PIN) {
-    setIsAuthenticated(true);
-
-    localStorage.setItem(
-      "admin-auth",
-      "true"
-    );
-  } else {
-    alert("Wrong PIN");
-  }
-};
   useEffect(() => {
-  const isAdmin =
-    localStorage.getItem("admin-auth");
+    // Auth-Status liegt in localStorage, also erst nach dem Mount lesbar —
+    // deshalb bewusst im Effect. `ready` verhindert Hydration-Mismatch.
+    if (localStorage.getItem("admin-auth") === "true") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsAuthenticated(true);
+    }
+     
+    setReady(true);
+  }, []);
 
-  if (isAdmin === "true") {
-    setIsAuthenticated(true);
-  }
-}, []);
-
-useEffect(() => {
-  if (isAuthenticated) {
-    fetchGuests();
-  }
-}, [isAuthenticated]);
-
-useEffect(() => {
-  const channel = supabase
-    .channel("guests-changes")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "guests",
-      },
-      () => {
-        fetchGuests();
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []);
-  const fetchGuests = async () => {
+  const fetchGuests = useCallback(async () => {
     const { data, error } = await supabase
       .from("guests")
       .select("*")
       .order("id", { ascending: false });
+
+    setLoading(false);
 
     if (error) {
       console.log(error);
@@ -96,15 +62,39 @@ useEffect(() => {
     if (data) {
       setGuests(data);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      fetchGuests();
+    }
+  }, [isAuthenticated, fetchGuests]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("guests-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "guests" },
+        () => {
+          fetchGuests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchGuests]);
 
   const addGuest = async () => {
     if (!name.trim()) return;
 
     const { error } = await supabase.from("guests").insert([
       {
-        name: name,
-        allowedGuests: Number(allowedGuests),
+        name: name.trim(),
+        allowedGuests: Number(allowedGuests) || 0,
         checkedIn: 0,
         category: category,
       },
@@ -116,9 +106,8 @@ useEffect(() => {
     }
 
     fetchGuests();
-
     setName("");
-    setAllowedGuests(0);
+    setAllowedGuests("");
   };
 
   const checkInGuest = async (guest: Guest) => {
@@ -126,9 +115,7 @@ useEffect(() => {
 
     const { error } = await supabase
       .from("guests")
-      .update({
-        checkedIn: guest.checkedIn + 1,
-      })
+      .update({ checkedIn: guest.checkedIn + 1 })
       .eq("id", guest.id);
 
     if (error) {
@@ -144,9 +131,7 @@ useEffect(() => {
 
     const { error } = await supabase
       .from("guests")
-      .update({
-        checkedIn: guest.checkedIn - 1,
-      })
+      .update({ checkedIn: guest.checkedIn - 1 })
       .eq("id", guest.id);
 
     if (error) {
@@ -158,16 +143,7 @@ useEffect(() => {
   };
 
   const deleteGuest = async (id: number) => {
-    const confirmed = window.confirm(
-      "Willst du diesen VIP wirklich löschen?"
-    );
-
-    if (!confirmed) return;
-
-    const { error } = await supabase
-      .from("guests")
-      .delete()
-      .eq("id", id);
+    const { error } = await supabase.from("guests").delete().eq("id", id);
 
     if (error) {
       console.log(error);
@@ -176,324 +152,246 @@ useEffect(() => {
 
     fetchGuests();
   };
-const startEdit = (guest: Guest) => {
-  setEditingId(guest.id);
-  setEditName(guest.name);
-  setEditGuests(guest.allowedGuests);
-};
-const saveEdit = async () => {
-  const { error } = await supabase
-    .from("guests")
-    .update({
-      name: editName,
-      allowedGuests: editGuests,
-    })
-    .eq("id", editingId);
 
-  if (error) {
-    console.log(error);
-    return;
-  }
+  const startEdit = (guest: Guest) => {
+    setEditingId(guest.id);
+    setEditName(guest.name);
+    setEditGuests(guest.allowedGuests);
+  };
 
-  setEditingId(null);
+  const saveEdit = async () => {
+    const { error } = await supabase
+      .from("guests")
+      .update({ name: editName, allowedGuests: editGuests })
+      .eq("id", editingId);
 
-  fetchGuests();
-};
-  const totalCheckedIn = guests.reduce(
-    (sum, guest) => sum + guest.checkedIn,
-    0
-  );
-
-  const totalAllowedGuests = guests.reduce(
-    (sum, guest) => sum + guest.allowedGuests,
-    0
-  );
-  const totalVIPs = guests.filter(
-  (guest) => guest.category === "VIP"
-).length;
-
-const totalGuestlist = guests.filter(
-  (guest) => guest.category === "Guestlist"
-).length;
-if (!isAuthenticated) {
-  return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center">
-  <div className="bg-zinc-900 p-8 rounded-2xl w-80 text-center">
-    <h1 className="text-3xl font-bold text-red-500 mb-4">
-      Admin Login
-    </h1>
-
-    <input
-      type="password"
-      placeholder="PIN"
-      value={pin}
-      onChange={(e) => setPin(e.target.value)}
-      onKeyDown={(e) => {
-        if (e.key === "Enter") {
-          handleLogin();
-        }
-      }}
-      className="w-full p-3 rounded-lg bg-zinc-800 text-white placeholder-gray-400 mb-4"
-    />
-
-    <button
-      onClick={handleLogin}
-      className="w-full bg-red-600 hover:bg-red-700 p-3 rounded-lg font-bold"
-    >
-      Login
-    </button>
-  </div>
-</main>
-  );
-}
-
-  return (
-    <main className="min-h-screen bg-black text-white p-5 md:p-10">
-      <h1 className="text-4xl md:text-5xl font-bold mb-8 text-red-500">
-        Playground VIP System
-      </h1>
-<button
-  onClick={() => {
-    localStorage.removeItem("admin-auth");
-    window.location.href = "/";
-  }}
-  className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
->
-  Zur Auswahl
-</button>
-      <div className="mb-8 flex flex-col md:flex-row gap-3 md:gap-6 text-lg md:text-xl">
-  <p>
-    VIPs:{" "}
-    <span className="text-pink-400 font-bold">
-      {totalVIPs}
-    </span>
-  </p>
-
-  <p>
-    Guestlist:{" "}
-    <span className="text-orange-400 font-bold">
-      {totalGuestlist}
-    </span>
-  </p>
-
-  <p>
-    Checked In:{" "}
-    <span className="font-bold">
-      {totalCheckedIn}
-    </span>{" "}
-    / {totalAllowedGuests}
-  </p>
-</div>
-
-      <div className="flex flex-col md:flex-row gap-4 mb-10">
-        <input
-  className="p-3 rounded bg-white text-black"
-  placeholder="VIP Name"
-  value={name}
-  onChange={(e) => setName(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === "Enter") {
-      addGuest();
+    if (error) {
+      console.log(error);
+      return;
     }
-  }}
-/>
-<select
-  value={category}
-  onChange={(e) =>
-    setCategory(e.target.value)
+
+    setEditingId(null);
+    fetchGuests();
+  };
+
+  const totalCheckedIn = guests.reduce((sum, g) => sum + g.checkedIn, 0);
+  const totalAllowedGuests = guests.reduce((sum, g) => sum + g.allowedGuests, 0);
+  const totalVIPs = guests.filter((g) => g.category === "VIP").length;
+  const totalGuestlist = guests.filter((g) => g.category === "Guestlist").length;
+
+  const visible = guests.filter((g) =>
+    g.name.toLowerCase().includes(search.toLowerCase())
+  );
+
+  if (!ready) {
+    return <main className="min-h-screen bg-ink-950" />;
   }
-  className="p-3 rounded bg-white text-black"
->
-  <option value="Guestlist">
-    Guestlist
-  </option>
 
-  <option value="VIP">
-    VIP
-  </option>
-</select>
-      <input
-  className="p-3 rounded bg-white text-black md:w-32"
-  type="number"
-  placeholder="+Guests"
-  value={allowedGuests}
-  onChange={(e) =>
-    setAllowedGuests(Number(e.target.value))
-  }
-/>
-
-        <input
-          type="text"
-          placeholder="Search VIP..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          className="p-3 rounded bg-white text-black md:w-80"
-        />
-
-        <button
-          onClick={addGuest}
-          className="bg-red-600 hover:bg-red-700 transition px-6 py-3 rounded font-bold"
-        >
-          Add VIP
-        </button>
-      </div>
-
-      <div className="space-y-5">
-        {guests
-  .filter((guest) =>
-    guest.name
-      .toLowerCase()
-      .includes(search.toLowerCase())
-  )
-  .map((guest) => {
-    const remaining =
-      guest.allowedGuests - guest.checkedIn;
-
-   const isFull =
-  guest.allowedGuests > 0 &&
-  remaining <= 0;
-
+  if (!isAuthenticated) {
     return (
-      <div
-        key={guest.id}
-       className={`p-6 rounded-2xl border transition ${
-  isFull
-    ? "bg-red-950 border-red-700"
-    : guest.allowedGuests > 0 &&
-      remaining <= 2
-    ? "bg-amber-950 border-amber-700"
-    : "bg-zinc-900 border-zinc-700"
-}`}
-      >
-        {editingId === guest.id ? (
-          <div className="flex flex-col gap-3">
-            <input
-              value={editName}
-              onChange={(e) =>
-                setEditName(e.target.value)
-              }
-              className="p-3 rounded bg-white text-black"
+      <PinScreen
+        title="Admin Mode"
+        subtitle="PIN eingeben, um die Gästeliste zu verwalten"
+        expectedPin={ADMIN_PIN}
+        onSuccess={() => {
+          localStorage.setItem("admin-auth", "true");
+          setIsAuthenticated(true);
+        }}
+      />
+    );
+  }
+
+  return (
+    <div className="min-h-screen">
+      <AppHeader
+        mode="Admin Mode"
+        onExit={() => {
+          localStorage.removeItem("admin-auth");
+          window.location.href = "/";
+        }}
+      />
+
+      <main className="mx-auto max-w-5xl px-4 py-5 md:px-6 md:py-8">
+        {/* Stats */}
+        <div className="flex gap-3">
+          <Stat
+            label="Eingecheckt"
+            value={totalCheckedIn}
+            sub={`/ ${totalAllowedGuests}`}
+            accent
+          />
+          <Stat label="VIPs" value={totalVIPs} />
+          <Stat label="Gästeliste" value={totalGuestlist} />
+        </div>
+
+        {/* Eintrag hinzufügen */}
+        <section className="mt-6 rounded-card border border-ink-800 bg-ink-900 p-4 md:p-5">
+          <h2 className="text-[11px] uppercase tracking-[0.18em] text-fg-faint">
+            Eintrag hinzufügen
+          </h2>
+
+          <div className="mt-3 grid gap-3 md:grid-cols-[1fr_auto_auto_auto]">
+            <Input
+              placeholder="Name"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addGuest();
+              }}
             />
 
-            <input
-              type="number"
-              value={editGuests}
-              onChange={(e) =>
-                setEditGuests(
-                  Number(e.target.value)
-                )
-              }
-              className="p-3 rounded bg-white text-black"
-            />
-
-            <button
-              onClick={saveEdit}
-              className="bg-blue-600 hover:bg-blue-700 transition px-4 py-3 rounded-lg font-bold"
+            <select
+              value={category}
+              onChange={(e) => setCategory(e.target.value)}
+              className="rounded-control border border-ink-700 bg-ink-850 px-3.5 py-2.5
+                         text-sm text-fg transition-colors hover:border-ink-600
+                         focus:border-accent-soft md:w-36"
             >
-              Save
-            </button>
+              <option value="Guestlist">Gästeliste</option>
+              <option value="VIP">VIP</option>
+            </select>
+
+            <Input
+              type="number"
+              min={0}
+              placeholder="Plätze"
+              value={allowedGuests}
+              onChange={(e) => setAllowedGuests(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") addGuest();
+              }}
+              className="md:w-28"
+            />
+
+            <Button
+              variant="primary"
+              onClick={addGuest}
+              disabled={!name.trim()}
+              className="md:w-32"
+            >
+              Hinzufügen
+            </Button>
           </div>
-        ) : (
-          <>
-            <h2 className="text-2xl font-bold">
-              {guest.name}
-            </h2>
-<p
-  className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-bold ${
-    guest.category === "VIP"
-      ? "bg-purple-700 text-white"
-      : "bg-zinc-700 text-white"
-  }`}
->
-  {guest.category}
-</p>
+        </section>
 
-            <div className="mt-3 space-y-1">
-              <p className="text-zinc-300">
-                Allowed Guests:{" "}
-                {guest.allowedGuests}
-              </p>
+        {/* Suche */}
+        <div className="mt-6">
+          <SearchInput
+            type="text"
+            placeholder="Namen suchen…"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            className="md:max-w-sm"
+          />
+        </div>
 
-              <p className="text-green-400 font-semibold">
-                Checked In: {guest.checkedIn}
-              </p>
-
-              <p
-                className={`font-semibold ${
-                  isFull
-                    ? "text-red-400"
-                    : "text-yellow-400"
-                }`}
+        {/* Liste */}
+        <div className="mt-4 grid gap-3 md:grid-cols-2">
+          {visible.map((guest) =>
+            editingId === guest.id ? (
+              <div
+                key={guest.id}
+                className="rounded-card border border-accent-soft/50 bg-ink-900 p-4"
               >
-                Remaining: {remaining}
-              </p>
+                <p className="text-[11px] uppercase tracking-[0.18em] text-accent">
+                  Bearbeiten
+                </p>
 
-              <p className="text-xs text-zinc-500 mt-2">
-                Added:{" "}
-                {new Date(
-                  guest.created_at
-                ).toLocaleTimeString([], {
-                  hour: "2-digit",
-                  minute: "2-digit",
-                })}
-              </p>
-            </div>
+                <div className="mt-3 space-y-3">
+                  <Input
+                    value={editName}
+                    onChange={(e) => setEditName(e.target.value)}
+                    placeholder="Name"
+                    autoFocus
+                  />
+                  <Input
+                    type="number"
+                    min={0}
+                    value={editGuests}
+                    onChange={(e) => setEditGuests(Number(e.target.value))}
+                    placeholder="Plätze"
+                  />
+                </div>
 
-            <div className="flex flex-col md:flex-row gap-3 mt-5">
-              <button
-                onClick={() =>
-                  checkInGuest(guest)
+                <div className="mt-4 flex gap-2">
+                  <Button variant="primary" onClick={saveEdit}>
+                    Speichern
+                  </Button>
+                  <Button variant="ghost" onClick={() => setEditingId(null)}>
+                    Abbrechen
+                  </Button>
+                </div>
+              </div>
+            ) : (
+              <GuestCard
+                key={guest.id}
+                guest={guest}
+                showAddedTime
+                onCheckIn={() => checkInGuest(guest)}
+                onCheckOut={() => checkOutGuest(guest)}
+                footer={
+                  <div className="flex gap-2">
+                    <Button size="sm" onClick={() => startEdit(guest)}>
+                      Bearbeiten
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="danger"
+                      onClick={() => setPendingDelete(guest)}
+                    >
+                      Löschen
+                    </Button>
+                  </div>
                 }
-                disabled={isFull}
-                className={`px-4 py-3 rounded-lg font-bold transition ${
-                  isFull
-                    ? "bg-gray-600 cursor-not-allowed"
-                    : "bg-green-600 hover:bg-green-700"
-                }`}
-              >
-                {isFull
-                  ? "Limit Reached"
-                  : "+1 Check In"}
-              </button>
+              />
+            )
+          )}
+        </div>
 
-              <button
-                onClick={() =>
-                  checkOutGuest(guest)
-                }
-                disabled={guest.checkedIn <= 0}
-                className={`px-4 py-3 rounded-lg font-bold transition ${
-                  guest.checkedIn <= 0
-                    ? "bg-gray-700 cursor-not-allowed"
-                    : "bg-zinc-700 hover:bg-zinc-600"
-                }`}
-              >
-                -1 Check Out
-              </button>
+        {!loading && visible.length === 0 ? (
+          <div className="mt-4">
+            <EmptyState
+              title={
+                search ? `Kein Treffer für „${search}“` : "Noch keine Einträge"
+              }
+              hint={
+                search
+                  ? "Anderen Namen probieren."
+                  : "Oben einen Namen eintragen, um zu starten."
+              }
+            />
+          </div>
+        ) : null}
 
-              <button
-                onClick={() =>
-                  deleteGuest(guest.id)
-                }
-                className="bg-red-800 hover:bg-red-800 transition px-4 py-3 rounded-lg font-bold"
-              >
-                Delete VIP
-              </button>
+        {loading ? (
+          <div className="mt-4 grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
+              <div
+                key={i}
+                className={cn(
+                  "h-[214px] animate-pulse rounded-card",
+                  "border border-ink-800 bg-ink-900"
+                )}
+              />
+            ))}
+          </div>
+        ) : null}
+      </main>
 
-              <button
-                onClick={() =>
-                  startEdit(guest)
-                }
-                className="bg-blue-700 hover:bg-blue-800 transition px-4 py-3 rounded-lg font-bold"
-              >
-                Edit VIP
-              </button>
-            </div>
-                </>
-    )}
-  </div>
-);
-  })}
+      <ConfirmDialog
+        open={pendingDelete !== null}
+        title="Eintrag löschen?"
+        message={
+          pendingDelete
+            ? `„${pendingDelete.name}“ wird endgültig aus der Liste entfernt.`
+            : ""
+        }
+        onCancel={() => setPendingDelete(null)}
+        onConfirm={() => {
+          if (pendingDelete) deleteGuest(pendingDelete.id);
+          setPendingDelete(null);
+        }}
+      />
     </div>
-  </main>
-);
+  );
 }

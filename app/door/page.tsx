@@ -1,62 +1,42 @@
 "use client";
 
+import { useCallback, useEffect, useState } from "react";
+import { supabase } from "../../lib/supabase";
+import { AppHeader } from "../components/AppHeader";
+import { GuestCard, Guest } from "../components/GuestCard";
+import { PinScreen } from "../components/PinScreen";
+import { EmptyState, SearchInput, Stat, cn } from "../components/ui";
+
 const DOOR_PIN = "5678";
 
-import { useEffect, useState } from "react";
-import { supabase } from "../../lib/supabase";
-
-type Guest = {
-  id: number;
-  name: string;
-  allowedGuests: number;
-  checkedIn: number;
-  created_at: string;
-  category: string;
-};
+type Filter = "Alle" | "VIP" | "Guestlist";
 
 export default function DoorPage() {
   const [search, setSearch] = useState("");
+  const [filter, setFilter] = useState<Filter>("Alle");
   const [guests, setGuests] = useState<Guest[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [ready, setReady] = useState(false);
 
-const [pin, setPin] = useState("");
-const [isAuthenticated, setIsAuthenticated] = useState(false);
+  useEffect(() => {
+    // Auth-Status liegt in localStorage, also erst nach dem Mount lesbar —
+    // deshalb bewusst im Effect. `ready` verhindert Hydration-Mismatch.
+    if (localStorage.getItem("door-auth") === "true") {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setIsAuthenticated(true);
+    }
+     
+    setReady(true);
+  }, []);
 
-useEffect(() => {
-  if (localStorage.getItem("door-auth") === "true") {
-    setIsAuthenticated(true);
-  }
-}, []);
-
-useEffect(() => {
-  fetchGuests();
-}, []);
-
-useEffect(() => {
-  const channel = supabase
-    .channel("guests-changes")
-    .on(
-      "postgres_changes",
-      {
-        event: "*",
-        schema: "public",
-        table: "guests",
-      },
-      () => {
-        fetchGuests();
-      }
-    )
-    .subscribe();
-
-  return () => {
-    supabase.removeChannel(channel);
-  };
-}, []);
-
-  const fetchGuests = async () => {
+  const fetchGuests = useCallback(async () => {
     const { data, error } = await supabase
       .from("guests")
       .select("*")
       .order("id", { ascending: false });
+
+    setLoading(false);
 
     if (error) {
       console.log(error);
@@ -66,21 +46,47 @@ useEffect(() => {
     if (data) {
       setGuests(data);
     }
-  };
+  }, []);
+
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    fetchGuests();
+  }, [fetchGuests]);
+
+  useEffect(() => {
+    const channel = supabase
+      .channel("guests-changes")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "guests" },
+        () => {
+          fetchGuests();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchGuests]);
 
   const checkInGuest = async (guest: Guest) => {
     if (guest.checkedIn >= guest.allowedGuests) return;
 
+    // Optimistisch aktualisieren — an der Tür soll der Tap sofort wirken
+    setGuests((prev) =>
+      prev.map((g) =>
+        g.id === guest.id ? { ...g, checkedIn: g.checkedIn + 1 } : g
+      )
+    );
+
     const { error } = await supabase
       .from("guests")
-      .update({
-        checkedIn: guest.checkedIn + 1,
-      })
+      .update({ checkedIn: guest.checkedIn + 1 })
       .eq("id", guest.id);
 
     if (error) {
       console.log(error);
-      return;
     }
 
     fetchGuests();
@@ -89,225 +95,141 @@ useEffect(() => {
   const checkOutGuest = async (guest: Guest) => {
     if (guest.checkedIn <= 0) return;
 
+    setGuests((prev) =>
+      prev.map((g) =>
+        g.id === guest.id ? { ...g, checkedIn: g.checkedIn - 1 } : g
+      )
+    );
+
     const { error } = await supabase
       .from("guests")
-      .update({
-        checkedIn: guest.checkedIn - 1,
-      })
+      .update({ checkedIn: guest.checkedIn - 1 })
       .eq("id", guest.id);
 
     if (error) {
       console.log(error);
-      return;
     }
 
     fetchGuests();
   };
 
-  const totalCheckedIn = guests.reduce(
-    (sum, guest) => sum + guest.checkedIn,
-    0
-  );
+  const totalCheckedIn = guests.reduce((sum, g) => sum + g.checkedIn, 0);
+  const totalAllowedGuests = guests.reduce((sum, g) => sum + g.allowedGuests, 0);
+  const totalVIPs = guests.filter((g) => g.category === "VIP").length;
+  const totalGuestlist = guests.filter((g) => g.category === "Guestlist").length;
 
-  const totalAllowedGuests = guests.reduce(
-    (sum, guest) => sum + guest.allowedGuests,
-    0
-  );
-const totalVIPs = guests.filter(
-  (guest) => guest.category === "VIP"
-).length;
+  const visible = guests
+    .filter((g) => filter === "Alle" || g.category === filter)
+    .filter((g) => g.name.toLowerCase().includes(search.toLowerCase()));
 
-const totalGuestlist = guests.filter(
-  (guest) => guest.category === "Guestlist"
-).length;
-if (!isAuthenticated) {
+  // Kein Flackern des PIN-Screens beim ersten Render
+  if (!ready) {
+    return <main className="min-h-screen bg-ink-950" />;
+  }
+
+  if (!isAuthenticated) {
+    return (
+      <PinScreen
+        title="Door Mode"
+        subtitle="PIN eingeben, um den Einlass zu starten"
+        expectedPin={DOOR_PIN}
+        onSuccess={() => {
+          localStorage.setItem("door-auth", "true");
+          setIsAuthenticated(true);
+        }}
+      />
+    );
+  }
+
   return (
-    <main className="min-h-screen bg-black text-white flex items-center justify-center">
-      <div className="bg-zinc-900 p-8 rounded-2xl w-80 text-center">
-        <h1 className="text-3xl font-bold text-red-500 mb-4">
-          Door Login
-        </h1>
-
-       <input
-  type="password"
-  placeholder="PIN"
-  value={pin}
-  onChange={(e) => setPin(e.target.value)}
-  onKeyDown={(e) => {
-    if (e.key === "Enter") {
-      if (pin === DOOR_PIN) {
-        localStorage.setItem("door-auth", "true");
-        setIsAuthenticated(true);
-      } else {
-        alert("Wrong PIN");
-      }
-    }
-  }}
-  className="w-full p-3 rounded-lg bg-zinc-800 text-white placeholder-gray-400 mb-4"
-/>
-
-        <button
-          onClick={() => {
-            if (pin === DOOR_PIN) {
-              localStorage.setItem("door-auth", "true");
-              setIsAuthenticated(true);
-            } else {
-              alert("Wrong PIN");
-            }
-          }}
-          className="w-full bg-red-600 hover:bg-red-700 p-3 rounded-lg font-bold"
-        >
-          Login
-        </button>
-      </div>
-    </main>
-  );
-}
-  return (
-    <main className="min-h-screen bg-black text-white p-5 md:p-10">
-      <h1 className="text-4xl md:text-5xl font-bold mb-8 text-red-500">
-        Playground Door Mode
-      </h1>
-<button
-  onClick={() => {
-    localStorage.removeItem("door-auth");
-    window.location.href = "/";
-  }}
-  className="mb-6 bg-red-700 hover:bg-red-800 px-4 py-2 rounded-lg font-bold"
->
-  Zur Auswahl
-</button>
-
-      <div className="mb-8 flex flex-col md:flex-row gap-3 md:gap-6 text-lg md:text-xl">
-  <p>
-    VIPs:{" "}
-    <span className="text-pink-400 font-bold">
-      {totalVIPs}
-    </span>
-  </p>
-
-  <p>
-    Guestlist:{" "}
-    <span className="text-orange-400 font-bold">
-      {totalGuestlist}
-    </span>
-  </p>
-
-  <p>
-    Checked In:{" "}
-    <span className="font-bold">
-      {totalCheckedIn}
-    </span>{" "}
-    / {totalAllowedGuests}
-  </p>
-</div>
-
-      <div className="mb-10">
-        <input
+    <div className="min-h-screen">
+      <AppHeader
+        mode="Door Mode"
+        onExit={() => {
+          localStorage.removeItem("door-auth");
+          window.location.href = "/";
+        }}
+      >
+        <SearchInput
           type="text"
-          placeholder="Search VIP..."
+          placeholder="Namen suchen…"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
-          className="p-4 rounded-xl bg-white text-black w-full md:w-96"
         />
-      </div>
+      </AppHeader>
 
-      <div className="space-y-5">
-        {guests
-          .filter((guest) =>
-            guest.name
-              .toLowerCase()
-              .includes(search.toLowerCase())
-          )
-          .map((guest) => {
-            const remaining =
-              guest.allowedGuests -
-              guest.checkedIn;
+      <main className="mx-auto max-w-5xl px-4 py-5 md:px-6 md:py-8">
+        {/* Stats */}
+        <div className="flex gap-3">
+          <Stat
+            label="Eingecheckt"
+            value={totalCheckedIn}
+            sub={`/ ${totalAllowedGuests}`}
+            accent
+          />
+          <Stat label="VIPs" value={totalVIPs} />
+          <Stat label="Gästeliste" value={totalGuestlist} />
+        </div>
 
-            const isFull =
-  guest.allowedGuests > 0 &&
-  remaining <= 0;
+        {/* Filter */}
+        <div className="mt-5 flex gap-1.5">
+          {(["Alle", "VIP", "Guestlist"] as Filter[]).map((f) => (
+            <button
+              key={f}
+              type="button"
+              onClick={() => setFilter(f)}
+              className={cn(
+                "rounded-full border px-3.5 py-1.5 text-sm font-medium transition-colors duration-150",
+                filter === f
+                  ? "border-accent-soft/60 bg-accent-dim text-accent"
+                  : "border-ink-800 bg-ink-900 text-fg-muted hover:border-ink-700 hover:text-fg"
+              )}
+            >
+              {f}
+            </button>
+          ))}
+        </div>
 
-            return (
+        {/* Liste */}
+        <div className="mt-5 grid gap-3 md:grid-cols-2">
+          {visible.map((guest) => (
+            <GuestCard
+              key={guest.id}
+              guest={guest}
+              onCheckIn={() => checkInGuest(guest)}
+              onCheckOut={() => checkOutGuest(guest)}
+            />
+          ))}
+        </div>
+
+        {!loading && visible.length === 0 ? (
+          <div className="mt-5">
+            <EmptyState
+              title={
+                search
+                  ? `Kein Treffer für „${search}“`
+                  : "Noch keine Einträge"
+              }
+              hint={
+                search
+                  ? "Anderen Namen probieren oder Filter zurücksetzen."
+                  : "Gäste werden im Admin Mode angelegt."
+              }
+            />
+          </div>
+        ) : null}
+
+        {loading ? (
+          <div className="mt-5 grid gap-3 md:grid-cols-2">
+            {[0, 1, 2, 3].map((i) => (
               <div
-                key={guest.id}
-                className={`p-6 rounded-2xl border transition ${
-  isFull
-    ? "bg-red-950 border-red-700"
-    : guest.allowedGuests > 0 &&
-      remaining <= 2
-    ? "bg-amber-950 border-amber-700"
-    : "bg-zinc-900 border-zinc-700"
-}`}
-              >
-                <h2 className="text-2xl font-bold">
-                  {guest.name}
-                </h2>
-<p
-  className={`mt-2 inline-block px-3 py-1 rounded-full text-sm font-bold ${
-    guest.category === "VIP"
-      ? "bg-purple-700 text-white"
-      : "bg-zinc-700 text-white"
-  }`}
->
-  {guest.category}
-</p>
-                <div className="mt-3 space-y-1">
-                  <p className="text-zinc-300">
-                    Allowed Guests:{" "}
-                    {guest.allowedGuests}
-                  </p>
-
-                  <p className="text-green-400 font-semibold">
-                    Checked In: {guest.checkedIn}
-                  </p>
-
-                  <p
-                    className={`font-semibold ${
-                      isFull
-                        ? "text-red-400"
-                        : "text-yellow-400"
-                    }`}
-                  >
-                    Remaining: {remaining}
-                  </p>
-                </div>
-
-                <div className="flex flex-col md:flex-row gap-3 mt-5">
-                  <button
-                    onClick={() =>
-                      checkInGuest(guest)
-                    }
-                    disabled={isFull}
-                    className={`px-4 py-3 rounded-lg font-bold transition ${
-                      isFull
-                        ? "bg-gray-600 cursor-not-allowed"
-                        : "bg-green-600 hover:bg-green-700"
-                    }`}
-                  >
-                    {isFull
-                      ? "Limit Reached"
-                      : "+1 Check In"}
-                  </button>
-
-                  <button
-                    onClick={() =>
-                      checkOutGuest(guest)
-                    }
-                    disabled={guest.checkedIn <= 0}
-                    className={`px-4 py-3 rounded-lg font-bold transition ${
-                      guest.checkedIn <= 0
-                        ? "bg-gray-700 cursor-not-allowed"
-                        : "bg-zinc-700 hover:bg-zinc-600"
-                    }`}
-                  >
-                    -1 Check Out
-                  </button>
-                </div>
-              </div>
-            );
-          })}
-      </div>
-    </main>
+                key={i}
+                className="h-[152px] animate-pulse rounded-card border border-ink-800 bg-ink-900"
+              />
+            ))}
+          </div>
+        ) : null}
+      </main>
+    </div>
   );
 }
