@@ -1,26 +1,96 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
+/* ------------------------------------------------------------------
+   Playground VIP System — Design Tokens
+   Dark Luxe: tiefes Schwarz, ein Gold-Akzent, Status nur über Ampel.
+------------------------------------------------------------------ */
+
+@theme {
+  /* Surfaces — von tief nach hoch */
+  --color-ink-950: #08080a;
+  --color-ink-900: #0d0d10;
+  --color-ink-850: #131317;
+  --color-ink-800: #191920;
+  --color-ink-700: #23232c;
+  --color-ink-600: #33333f;
+
+  /* Text */
+  --color-fg: #f4f2ee;
+  --color-fg-muted: #a5a3ac;
+  --color-fg-faint: #6d6b76;
+
+  /* Akzent — Gold */
+  --color-accent: #d4af6a;
+  --color-accent-soft: #8c6f3d;
+  --color-accent-dim: #3a2f1c;
+
+  /* Status — nur Ampel, sonst nichts Buntes */
+  --color-ok: #4ea87a;
+  --color-ok-dim: #16281f;
+  --color-warn: #d9a441;
+  --color-warn-dim: #2b2113;
+  --color-danger: #d15b52;
+  --color-danger-dim: #2c1614;
+
+  /* Typo */
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-geist-mono), ui-monospace, monospace;
+
+  /* Radien */
+  --radius-card: 0.875rem;
+  --radius-control: 0.625rem;
 }
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+html {
+  background-color: var(--color-ink-950);
+  color-scheme: dark;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background-color: var(--color-ink-950);
+  color: var(--color-fg);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+  text-rendering: optimizeLegibility;
+}
+
+/* Sichtbarer, einheitlicher Fokusring statt Browser-Default */
+:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Zahlen in Stats/Countern springen beim Zählen nicht */
+.tabular {
+  font-variant-numeric: tabular-nums;
+}
+
+/* Feiner Lichtschein oben — gibt dem Schwarz Tiefe */
+.page-glow {
+  background-image: radial-gradient(
+    120% 60% at 50% -10%,
+    rgba(212, 175, 106, 0.07) 0%,
+    transparent 60%
+  );
+}
+
+/* Dünne Trennlinie mit Verlauf */
+.hairline {
+  background-image: linear-gradient(
+    to right,
+    transparent,
+    var(--color-ink-700) 20%,
+    var(--color-ink-700) 80%,
+    transparent
+  );
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
 }
